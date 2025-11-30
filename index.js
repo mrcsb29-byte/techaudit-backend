@@ -1,25 +1,25 @@
+// index.js
 const express = require("express");
+const path = require("path");
 
 const app = express();
 
 /**
- * 1) Servir l'interface (public/index.html) à la racine "/"
- *    -> https://techaudit-backend-1.onrender.com/
+ * 1) Servir le dashboard (public/index.html)
+ *    Accessible sans secret.
  */
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 /**
- * 2) Middleware de sécurité pour les routes d'API
- *    On l'appliquera uniquement sur /health et /pagespeed-audit
+ * 2) Middleware de sécurité pour les endpoints API
+ *    (santé + audit).
  */
-function checkSecret(req, res, next) {
+function requireSecret(req, res, next) {
   const secret = req.headers["x-techaudit-secret"];
   const expected = process.env.TECHAUDIT_SECRET;
 
   if (!expected) {
-    console.error(
-      "TECHAUDIT_SECRET non défini dans les variables d'environnement"
-    );
+    console.error("TECHAUDIT_SECRET non défini dans les variables d'environnement");
     return res
       .status(500)
       .json({ error: "Server misconfigured: missing TECHAUDIT_SECRET" });
@@ -33,19 +33,27 @@ function checkSecret(req, res, next) {
 }
 
 /**
- * 3) Endpoint /health pour tester facilement depuis Postman/ReqBin
- *    Protégé par le header x-techaudit-secret
+ * 3) Endpoint /health
+ *    Pour vérifier que le backend est joignable et que le secret est bon.
  */
-app.get("/health", checkSecret, (req, res) => {
+app.get("/health", requireSecret, (req, res) => {
   res.json({ status: "ok" });
 });
 
 /**
- * 4) Endpoint /pagespeed-audit
- *    ?url=https://ton-site.fr/&strategy=mobile|desktop
- *    Protégé par le header x-techaudit-secret
+ * 4) Endpoint unique : /pagespeed-audit
+ *    Renvoie :
+ *      - performanceScore
+ *      - coreWebVitals
+ *      - seoScore
+ *      - screenshot (base64 data URL)
+ *      - rawLighthouse (brut pour debug)
+ *
+ *    Exemple d'appel :
+ *    GET /pagespeed-audit?url=https://www.exorciste-guerisseur.fr/&strategy=mobile
+ *    Header : x-techaudit-secret: TON_SECRET
  */
-app.get("/pagespeed-audit", checkSecret, async (req, res) => {
+app.get("/pagespeed-audit", requireSecret, async (req, res) => {
   try {
     const url = req.query.url;
     const strategy = req.query.strategy || "mobile";
@@ -56,28 +64,33 @@ app.get("/pagespeed-audit", checkSecret, async (req, res) => {
 
     const apiKey = process.env.PAGESPEED_API_KEY;
     if (!apiKey) {
-      console.error(
-        "PAGESPEED_API_KEY non défini dans les variables d'environnement"
-      );
+      console.error("PAGESPEED_API_KEY non défini dans les variables d'environnement");
       return res
         .status(500)
         .json({ error: "Server misconfigured: missing PAGESPEED_API_KEY" });
     }
 
+    // Appel à l’API PageSpeed
     const googleUrl =
       "https://www.googleapis.com/pagespeedonline/v5/runPagespeed" +
       `?url=${encodeURIComponent(url)}` +
       `&strategy=${strategy}` +
+      `&category=performance` +
+      `&category=seo` +
+      `&screenshot=true` +
       `&key=${apiKey}`;
 
-    // Node 22 sur Render a déjà fetch en global
     const googleRes = await fetch(googleUrl);
     const data = await googleRes.json();
 
-    const perfScore =
-      data?.lighthouseResult?.categories?.performance?.score ?? null;
+    const lighthouse = data?.lighthouseResult || {};
+    const categories = lighthouse.categories || {};
+    const audits = lighthouse.audits || {};
 
-    const audits = data?.lighthouseResult?.audits ?? {};
+    // Score de performance
+    const performanceScore = categories.performance?.score ?? null;
+
+    // Core Web Vitals (valeurs lisibles)
     const coreWebVitals = {
       firstContentfulPaint:
         audits["first-contentful-paint"]?.displayValue ?? null,
@@ -89,23 +102,35 @@ app.get("/pagespeed-audit", checkSecret, async (req, res) => {
         audits["cumulative-layout-shift"]?.displayValue ?? null,
     };
 
+    // SEO : score global
+    const seoScore = categories.seo?.score ?? null;
+
+    // Screenshot final (data:image/jpeg;base64,....)
+    const screenshot =
+      audits["final-screenshot"]?.details?.data ?? null;
+
     const result = {
       url,
       strategy,
-      performanceScore: perfScore,
+      performanceScore,
       coreWebVitals,
+      seoScore,
+      screenshot,
+      rawLighthouse: lighthouse, // utile pour le bloc "Réponse brute (debug)"
     };
 
     return res.json(result);
   } catch (e) {
-    console.error(e);
+    console.error("Erreur dans /pagespeed-audit", e);
     return res
       .status(500)
       .json({ error: "Internal error while calling PageSpeed API" });
   }
 });
 
-// Lancement du serveur
+/**
+ * 5) Lancement du serveur
+ */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("TechAudit backend running on port " + PORT);
