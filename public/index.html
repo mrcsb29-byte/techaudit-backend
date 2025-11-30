@@ -1,1 +1,65 @@
+<script>
+document.getElementById("auditBtn").addEventListener("click", async () => {
+  const secret = document.getElementById("secret").value.trim();
+  const url = document.getElementById("url").value.trim();
+  const strategy = document.getElementById("strategy").value;
+
+  const errorBadge = document.getElementById("errorBadge");
+  const perfEl = document.getElementById("perfScore");
+  const webVitalEl = document.getElementById("webVitals");
+  const seoEl = document.getElementById("seoScore");
+  const rawEl = document.getElementById("rawDebug");
+
+  errorBadge.style.display = "none";
+  perfEl.textContent = "...";
+  webVitalEl.textContent = "...";
+  seoEl.textContent = "...";
+  rawEl.textContent = "...";
+
+  try {
+    const response = await fetch(
+      `/pagespeed-audit?url=${encodeURIComponent(url)}&strategy=${strategy}`,
+      {
+        headers: {
+          "x-techaudit-secret": secret
+        }
+      }
+    );
+
+    if (!response.ok) {
+      errorBadge.style.display = "inline-block";
+      rawEl.textContent = "Erreur HTTP : " + response.status;
+      return;
+    }
+
+    const data = await response.json();
+
+    // 🎯 Résumé performance
+    perfEl.textContent = data.performanceScore !== null
+      ? (data.performanceScore * 100).toFixed(0) + "%"
+      : "N/A";
+
+    // 🎯 Core Web Vitals
+    webVitalEl.innerHTML = `
+      <strong>FCP :</strong> ${data.coreWebVitals.firstContentfulPaint}<br>
+      <strong>LCP :</strong> ${data.coreWebVitals.largeestContentfulPaint}<br>
+      <strong>TBT :</strong> ${data.coreWebVitals.totalBlockingTime}<br>
+      <strong>CLS :</strong> ${data.coreWebVitals.cumulativeLayoutShift}
+    `;
+
+    // 🎯 Score SEO
+    seoEl.textContent = data.seoScore !== null
+      ? (data.seoScore * 100).toFixed(0) + "%"
+      : "N/A";
+
+    // 🎯 Affichage brut (debug)
+    rawEl.textContent = JSON.stringify(data, null, 2);
+
+  } catch (err) {
+    console.error("Erreur JS:", err);
+    errorBadge.style.display = "inline-block";
+    rawEl.textContent = String(err);
+  }
+});
+</script>
 
