@@ -1,48 +1,70 @@
 const express = require("express");
-const fetch = require("node-fetch"); // maintenant disponible
 const path = require("path");
 
 const app = express();
 app.use(express.json());
 
-// middleware secret
-app.use((req, res, next) => {
-  const expected = process.env.TECHAUDIT_SECRET;
-  const incoming = req.headers["x-techaudit-secret"];
-
-  if (req.path === "/" || req.path.startsWith("/public")) return next();
-
-  if (!expected) return res.status(500).json({ error: "Server missing TECHAUDIT_SECRET" });
-  if (!incoming || incoming !== expected) return res.status(403).json({ error: "Forbidden" });
-
-  next();
-});
-
-// servir les fichiers du dossier public
+// ➜ Servir les fichiers HTML dans /public
 app.use(express.static(path.join(__dirname, "public")));
 
+// ➜ Route principale pour vérifier que le backend tourne
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/index.html"));
+});
+
+// ➜ Endpoint AUDIT PSI (PageSpeed Insights)
 app.get("/audit", async (req, res) => {
   try {
     const url = req.query.url;
     const strategy = req.query.strategy || "mobile";
 
-    const api = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}`;
+    if (!url) {
+      return res.status(400).json({ error: "Missing ?url parameter" });
+    }
+
+    if (!process.env.PSI_API_KEY) {
+      return res.status(500).json({ error: "Missing PSI_API_KEY in Render environment" });
+    }
+
+    // URL API PageSpeed Insights
+    const api = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(
+      url
+    )}&strategy=${strategy}&key=${process.env.PSI_API_KEY}`;
+
+    console.log("Calling PSI API:", api);
 
     const response = await fetch(api);
-    const data = await response.json();
+    const json = await response.json();
 
-    const lighthouse = data.lighthouseResult;
+    if (!json.lighthouseResult) {
+      return res.status(500).json({
+        error: "PSI API returned no lighthouseResult",
+        raw: json
+      });
+    }
+
+    const lighthouse = json.lighthouseResult;
 
     res.json({
-      performance: lighthouse?.categories?.performance?.score || 0,
-      seo: lighthouse?.categories?.seo?.score || 0,
-      coreWebVitals: lighthouse?.audits || {}
+      performance: lighthouse.categories.performance.score,
+      seo: lighthouse.categories.seo.score,
+      coreWebVitals: {
+        firstContentfulPaint: lighthouse.audits["first-contentful-paint"].displayValue,
+        largestContentfulPaint: lighthouse.audits["largest-contentful-paint"].displayValue,
+        totalBlockingTime: lighthouse.audits["total-blocking-time"].displayValue,
+        cumulativeLayoutShift: lighthouse.audits["cumulative-layout-shift"].displayValue
+      }
     });
 
   } catch (err) {
-    res.status(500).json({ error: "Audit failed", detail: String(err) });
+    console.error("Audit error:", err);
+    res.status(500).json({
+      error: "Audit failed",
+      detail: String(err)
+    });
   }
 });
 
+// ➜ Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port " + PORT));
