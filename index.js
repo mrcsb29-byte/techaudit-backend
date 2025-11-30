@@ -5,7 +5,7 @@ const path = require("path");
 const app = express();
 app.use(express.json());
 
-// Middleware secret (toutes les routes sauf /)
+// Middleware secret
 app.use((req, res, next) => {
   const expected = process.env.TECHAUDIT_SECRET;
   const incoming = req.headers["x-techaudit-secret"];
@@ -15,7 +15,6 @@ app.use((req, res, next) => {
   }
 
   if (!expected) {
-    console.error("❌ TECHAUDIT_SECRET manquant !");
     return res.status(500).json({ error: "Server missing TECHAUDIT_SECRET" });
   }
 
@@ -29,23 +28,6 @@ app.use((req, res, next) => {
 // Servir le frontend
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route santé
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
-
-/**
- * 🔥 ENDPOINT UNIQUE QUI RENVOIE TOUT :
- * /audit?url=...&strategy=mobile|desktop
- *
- * Retour :
- * {
- *   performance,
- *   coreWebVitals,
- *   seo,
- *   screenshot
- * }
- */
 app.get("/audit", async (req, res) => {
   try {
     const url = req.query.url;
@@ -65,49 +47,32 @@ app.get("/audit", async (req, res) => {
     const response = await fetch(api);
     const data = await response.json();
 
-    // Score performance
-    const performanceScore = data.lighthouseResult?.categories?.performance?.score || 0;
+    const performance = data.lighthouseResult?.categories?.performance?.score || 0;
+    const seo = data.lighthouseResult?.categories?.seo?.score || 0;
 
-    // SEO score
-    const seoScore = data.lighthouseResult?.categories?.seo?.score || 0;
-
-    // Core Web Vitals
     const audits = data.lighthouseResult?.audits || {};
     const core = {
       firstContentfulPaint: audits["first-contentful-paint"]?.displayValue || null,
       largestContentfulPaint: audits["largest-contentful-paint"]?.displayValue || null,
       totalBlockingTime: audits["total-blocking-time"]?.displayValue || null,
-      cumulativeLayoutShift: audits["cumulative-layout-shift"]?.displayValue || null,
+      cumulativeLayoutShift: audits["cumulative-layout-shift"]?.displayValue || null
     };
-
-    // Screenshot final base64
-    let screenshot = null;
-    try {
-      screenshot =
-        data.lighthouseResult?.audits["final-screenshot"]?.details?.data || null;
-    } catch (e) {
-      screenshot = null;
-    }
 
     res.json({
       url,
       strategy,
-      performance: performanceScore,
+      performance,
       coreWebVitals: core,
-      seo: seoScore,
-      screenshot,
-      raw: data, // pour debug dans ton interface
+      seo,
+      raw: data
     });
+
   } catch (err) {
-    console.error("🔥 ERREUR AUDIT :", err);
     res.status(500).json({ error: "Audit failed", details: err.message });
   }
 });
 
-// Démarrage du serveur
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("🚀 TechAudit backend running on port " + PORT);
-  console.log("Frontend → /");
-  console.log("API → /audit");
 });
