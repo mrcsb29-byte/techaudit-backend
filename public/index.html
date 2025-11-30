@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>TechAudit Pro - Dashboard</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b0c10;
+      color: #f8f8f8;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+    .card {
+      background: #151720;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+    label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #33384a;
+      background: #10121b;
+      color: #f8f8f8;
+      margin-bottom: 0.75rem;
+    }
+    button {
+      padding: 0.7rem 1.4rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      background: #00b67b;
+      color: #000;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    pre {
+      background: #10121b;
+      padding: 0.8rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+    }
+    .screenshot {
+      margin-top: 1rem;
+      text-align: center;
+    }
+    .screenshot img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid #33384a;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #22263a;
+      margin-right: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>TechAudit Pro - PageSpeed Dashboard</h1>
+  <p>Audit PageSpeed, Core Web Vitals, SEO & screenshot en un clic.</p>
+
+  <div class="card">
+    <div>
+      <label for="secret">Secret (x-techaudit-secret)</label>
+      <input type="password" id="secret" placeholder="Colle ici ton secret Render" />
+    </div>
+    <div>
+      <label for="url">URL à auditer</label>
+      <input id="url" placeholder="https://www.exorciste-guerisseur.fr/" value="https://www.exorciste-guerisseur.fr/" />
+    </div>
+    <div>
+      <label for="strategy">Stratégie</label>
+      <select id="strategy">
+        <option value="mobile" selected>Mobile</option>
+        <option value="desktop">Desktop</option>
+      </select>
+    </div>
+    <button id="runBtn">Lancer l'audit</button>
+    <span id="status" class="tag"></span>
+  </div>
+
+  <div class="results">
+    <div class="card">
+      <h3>Résumé performance</h3>
+      <pre id="performance"></pre>
+    </div>
+    <div class="card">
+      <h3>Core Web Vitals</h3>
+      <pre id="coreWebVitals"></pre>
+    </div>
+    <div class="card">
+      <h3>SEO</h3>
+      <pre id="seo"></pre>
+    </div>
+    <div class="card">
+      <h3>Réponse brute (debug)</h3>
+      <pre id="raw"></pre>
+    </div>
+  </div>
+
+  <div class="card screenshot">
+    <h3>Screenshot PageSpeed</h3>
+    <div id="screenshotContainer">Aucune capture pour l'instant.</div>
+  </div>
+
+  <script>
+    const runBtn = document.getElementById("runBtn");
+    const statusEl = document.getElementById("status");
+    const perfEl = document.getElementById("performance");
+    const coreEl = document.getElementById("coreWebVitals");
+    const seoEl = document.getElementById("seo");
+    const rawEl = document.getElementById("raw");
+    const screenshotContainer = document.getElementById("screenshotContainer");
+
+    async function callEndpoint(path, url, strategy, secret) {
+      const qs = new URLSearchParams({ url, strategy });
+      const res = await fetch(path + "?" + qs.toString(), {
+        headers: { "x-techaudit-secret": secret }
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error("Erreur " + res.status + ": " + text);
+      }
+      return res.json();
+    }
+
+    runBtn.addEventListener("click", async () => {
+      const secret = document.getElementById("secret").value.trim();
+      const url = document.getElementById("url").value.trim();
+      const strategy = document.getElementById("strategy").value;
+
+      if (!secret) {
+        alert("Merci de renseigner le secret (x-techaudit-secret).");
+        return;
+      }
+      if (!url) {
+        alert("Merci de renseigner une URL.");
+        return;
+      }
+
+      runBtn.disabled = true;
+      statusEl.textContent = "Audit en cours...";
+      perfEl.textContent = "";
+      coreEl.textContent = "";
+      seoEl.textContent = "";
+      rawEl.textContent = "";
+      screenshotContainer.textContent = "Chargement de la capture...";
+
+      try {
+        // Appels en parallèle
+        const [audit, core, seo, screenshot] = await Promise.all([
+          callEndpoint("/pagespeed-audit", url, strategy, secret),
+          callEndpoint("/pagespeed-core-web-vitals", url, strategy, secret),
+          callEndpoint("/pagespeed-seo", url, strategy, secret),
+          callEndpoint("/pagespeed-screenshot", url, strategy, secret),
+        ]);
+
+        perfEl.textContent = JSON.stringify(audit, null, 2);
+        coreEl.textContent = JSON.stringify(core, null, 2);
+        seoEl.textContent = JSON.stringify(seo, null, 2);
+        rawEl.textContent = JSON.stringify(
+          { audit, core, seo },
+          null,
+          2
+        );
+
+        if (screenshot && screenshot.screenshot) {
+          screenshotContainer.innerHTML =
+            '<img src="' + screenshot.screenshot + '" alt="Screenshot PageSpeed" />';
+        } else {
+          screenshotContainer.textContent = "Pas de capture disponible.";
+        }
+
+        statusEl.textContent = "Audit terminé ✅";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Erreur ❌";
+        rawEl.textContent = err.message;
+        screenshotContainer.textContent = "Erreur lors de la récupération de la capture.";
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
