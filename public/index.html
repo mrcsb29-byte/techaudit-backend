@@ -11,9 +11,7 @@
       margin: 0;
       padding: 2rem;
     }
-    h1 {
-      margin-bottom: 0.5rem;
-    }
+    h1 { margin-bottom: 0.5rem; }
     .card {
       background: #151720;
       border-radius: 12px;
@@ -45,10 +43,7 @@
       background: #00b67b;
       color: #000;
     }
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
+    button:disabled { opacity: 0.5; cursor: default; }
     .results {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -174,7 +169,6 @@
       screenshotContainer.textContent = "Chargement de la capture...";
 
       try {
-        // Appels en parallèle
         const [audit, core, seo, screenshot] = await Promise.all([
           callEndpoint("/pagespeed-audit", url, strategy, secret),
           callEndpoint("/pagespeed-core-web-vitals", url, strategy, secret),
@@ -185,11 +179,7 @@
         perfEl.textContent = JSON.stringify(audit, null, 2);
         coreEl.textContent = JSON.stringify(core, null, 2);
         seoEl.textContent = JSON.stringify(seo, null, 2);
-        rawEl.textContent = JSON.stringify(
-          { audit, core, seo },
-          null,
-          2
-        );
+        rawEl.textContent = JSON.stringify({ audit, core, seo }, null, 2);
 
         if (screenshot && screenshot.screenshot) {
           screenshotContainer.innerHTML =
