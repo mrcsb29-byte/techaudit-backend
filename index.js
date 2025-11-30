@@ -10,6 +10,7 @@ app.use((req, res, next) => {
   const expected = process.env.TECHAUDIT_SECRET;
   const incoming = req.headers["x-techaudit-secret"];
 
+  // Autoriser l’accès à la page HTML
   if (req.path === "/" || req.path.startsWith("/public")) {
     return next();
   }
@@ -25,54 +26,39 @@ app.use((req, res, next) => {
   next();
 });
 
-// Servir le frontend
+// Servir les fichiers du dossier /public
 app.use(express.static(path.join(__dirname, "public")));
 
+// Route racine → sert index.html du bon dossier
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Endpoint audit
 app.get("/audit", async (req, res) => {
   try {
     const url = req.query.url;
     const strategy = req.query.strategy || "mobile";
 
-    if (!url) {
-      return res.status(400).json({ error: "Missing ?url=" });
-    }
-
-    const api =
-      "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=" +
-      encodeURIComponent(url) +
-      "&strategy=" +
-      strategy +
-      "&screenshot=true";
+    const api = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=${strategy}`;
 
     const response = await fetch(api);
-    const data = await response.json();
+    const json = await response.json();
 
-    const performance = data.lighthouseResult?.categories?.performance?.score || 0;
-    const seo = data.lighthouseResult?.categories?.seo?.score || 0;
-
-    const audits = data.lighthouseResult?.audits || {};
-    const core = {
-      firstContentfulPaint: audits["first-contentful-paint"]?.displayValue || null,
-      largestContentfulPaint: audits["largest-contentful-paint"]?.displayValue || null,
-      totalBlockingTime: audits["total-blocking-time"]?.displayValue || null,
-      cumulativeLayoutShift: audits["cumulative-layout-shift"]?.displayValue || null
-    };
+    const lighthouse = json.lighthouseResult;
 
     res.json({
-      url,
-      strategy,
-      performance,
-      coreWebVitals: core,
-      seo,
-      raw: data
+      performance: lighthouse.categories.performance.score,
+      seo: lighthouse.categories.seo.score,
+      coreWebVitals: lighthouse.audits,
     });
 
   } catch (err) {
-    res.status(500).json({ error: "Audit failed", details: err.message });
+    console.error("Audit error:", err);
+    res.status(500).json({ error: "Audit failed", detail: String(err) });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log("🚀 TechAudit backend running on port " + PORT);
-});
+// Démarrage du serveur
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Server running on port " + PORT));
