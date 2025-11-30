@@ -1,0 +1,82 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TechAudit Pro Backend",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://VOTRE-URL-RENDER-ICI"
+    }
+  ],
+  "paths": {
+    "/pagespeed-audit": {
+      "get": {
+        "operationId": "runAudit",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "strategy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mobile",
+                "desktop"
+              ],
+              "default": "mobile"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit Pagespeed condens\u00e9",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string"
+                    },
+                    "performanceScore": {
+                      "type": "number"
+                    },
+                    "coreWebVitals": {
+                      "type": "object",
+                      "properties": {
+                        "firstContentfulPaint": {
+                          "type": "string"
+                        },
+                        "largestContentfulPaint": {
+                          "type": "string"
+                        },
+                        "totalBlockingTime": {
+                          "type": "string"
+                        },
+                        "cumulativeLayoutShift": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
