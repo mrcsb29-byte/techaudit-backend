@@ -18,11 +18,9 @@ document.getElementById("auditBtn").addEventListener("click", async () => {
 
   try {
     const response = await fetch(
-      `/pagespeed-audit?url=${encodeURIComponent(url)}&strategy=${strategy}`,
+      `/audit?url=${encodeURIComponent(url)}&strategy=${strategy}`,
       {
-        headers: {
-          "x-techaudit-secret": secret
-        }
+        headers: { "x-techaudit-secret": secret }
       }
     );
 
@@ -35,24 +33,23 @@ document.getElementById("auditBtn").addEventListener("click", async () => {
     const data = await response.json();
 
     // 🎯 Résumé performance
-    perfEl.textContent = data.performanceScore !== null
-      ? (data.performanceScore * 100).toFixed(0) + "%"
+    perfEl.textContent = data.performance
+      ? (data.performance * 100).toFixed(0) + "%"
       : "N/A";
 
     // 🎯 Core Web Vitals
     webVitalEl.innerHTML = `
       <strong>FCP :</strong> ${data.coreWebVitals.firstContentfulPaint}<br>
-      <strong>LCP :</strong> ${data.coreWebVitals.largeestContentfulPaint}<br>
+      <strong>LCP :</strong> ${data.coreWebVitals.largestContentfulPaint}<br>
       <strong>TBT :</strong> ${data.coreWebVitals.totalBlockingTime}<br>
       <strong>CLS :</strong> ${data.coreWebVitals.cumulativeLayoutShift}
     `;
 
-    // 🎯 Score SEO
-    seoEl.textContent = data.seoScore !== null
-      ? (data.seoScore * 100).toFixed(0) + "%"
+    // 🎯 SEO
+    seoEl.textContent = data.seo
+      ? (data.seo * 100).toFixed(0) + "%"
       : "N/A";
 
-    // 🎯 Affichage brut (debug)
     rawEl.textContent = JSON.stringify(data, null, 2);
 
   } catch (err) {
@@ -62,4 +59,3 @@ document.getElementById("auditBtn").addEventListener("click", async () => {
   }
 });
 </script>
-
