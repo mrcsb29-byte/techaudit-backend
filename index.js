@@ -2,7 +2,17 @@ const express = require("express");
 
 const app = express();
 
+// ---------------------------------------------
+// ROUTE HEALTH (non protégée)
+// ---------------------------------------------
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// ---------------------------------------------
 // Middleware de sécurité : vérifie un header secret
+// (après /health, donc /health reste accessible)
+// ---------------------------------------------
 app.use((req, res, next) => {
   const secret = req.headers["x-techaudit-secret"];
   const expected = process.env.TECHAUDIT_SECRET;
@@ -21,7 +31,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---------------------------------------------
 // Endpoint principal : /pagespeed-audit
+// ---------------------------------------------
 app.get("/pagespeed-audit", async (req, res) => {
   try {
     const url = req.query.url;
