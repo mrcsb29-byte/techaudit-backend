@@ -1,70 +1,64 @@
 <script>
-  async function lancerAudit() {
-    const secret = document.getElementById("secret").value.trim();
-    const url = document.getElementById("url").value.trim();
-    const strategy = document.getElementById("strategy").value.trim();
+document.getElementById("auditBtn").addEventListener("click", async () => {
+  const secret = document.getElementById("secret").value.trim();
+  const url = document.getElementById("url").value.trim();
+  const strategy = document.getElementById("strategy").value;
 
-    const badge = document.getElementById("statusBadge");
-    const rawOutput = document.getElementById("rawOutput");
-    const perfScore = document.getElementById("perfScore");
-    const coreVitalsOutput = document.getElementById("coreVitalsOutput");
-    const seoOutput = document.getElementById("seoOutput");
+  const errorBadge = document.getElementById("errorBadge");
+  const perfEl = document.getElementById("perfScore");
+  const webVitalEl = document.getElementById("webVitals");
+  const seoEl = document.getElementById("seoScore");
+  const rawEl = document.getElementById("rawDebug");
 
-    // Reset UI
-    badge.textContent = "Chargement…";
-    badge.style.background = "#444";
-    rawOutput.textContent = "";
-    perfScore.textContent = "";
-    coreVitalsOutput.textContent = "";
-    seoOutput.textContent = "";
+  errorBadge.style.display = "none";
+  perfEl.textContent = "...";
+  webVitalEl.textContent = "...";
+  seoEl.textContent = "...";
+  rawEl.textContent = "...";
 
-    try {
-      // -----------------------------
-      // 🔥 APPEL UNIQUE : /pagespeed-audit
-      // -----------------------------
-      const endpoint = `/pagespeed-audit?url=${encodeURIComponent(url)}&strategy=${encodeURIComponent(strategy)}`;
-
-      const resp = await fetch(endpoint, {
+  try {
+    const response = await fetch(
+      `/pagespeed-audit?url=${encodeURIComponent(url)}&strategy=${strategy}`,
+      {
         headers: {
           "x-techaudit-secret": secret
         }
-      });
-
-      const data = await resp.json();
-      rawOutput.textContent = JSON.stringify(data, null, 2);
-
-      if (!resp.ok) {
-        badge.textContent = "Erreur ❌";
-        badge.style.background = "#b30000";
-        return;
       }
+    );
 
-      // -----------------------------
-      // 🔥 AFFICHAGE DES DONNÉES
-      // -----------------------------
-      badge.textContent = "Succès ✔";
-      badge.style.background = "#00b67b";
-
-      // Résumé performance
-      perfScore.textContent = (data.performanceScore * 100).toFixed(0) + "/100";
-
-      // Core Web Vitals
-      coreVitalsOutput.innerHTML = `
-        <div>FCP : ${data.coreWebVitals.firstContentfulPaint}</div>
-        <div>LCP : ${data.coreWebVitals.largestContentfulPaint}</div>
-        <div>TBT : ${data.coreWebVitals.totalBlockingTime}</div>
-        <div>CLS : ${data.coreWebVitals.cumulativeLayoutShift}</div>
-      `;
-
-      // SEO (si ajouté plus tard)
-      if (data.seo) {
-        seoOutput.textContent = data.seo.score;
-      }
-
-    } catch (err) {
-      badge.textContent = "Erreur ❌";
-      badge.style.background = "#b30000";
-      rawOutput.textContent = err.toString();
+    if (!response.ok) {
+      errorBadge.style.display = "inline-block";
+      rawEl.textContent = "Erreur HTTP : " + response.status;
+      return;
     }
+
+    const data = await response.json();
+
+    // 🎯 Résumé performance
+    perfEl.textContent = data.performanceScore !== null
+      ? (data.performanceScore * 100).toFixed(0) + "%"
+      : "N/A";
+
+    // 🎯 Core Web Vitals
+    webVitalEl.innerHTML = `
+      <strong>FCP :</strong> ${data.coreWebVitals.firstContentfulPaint}<br>
+      <strong>LCP :</strong> ${data.coreWebVitals.largeestContentfulPaint}<br>
+      <strong>TBT :</strong> ${data.coreWebVitals.totalBlockingTime}<br>
+      <strong>CLS :</strong> ${data.coreWebVitals.cumulativeLayoutShift}
+    `;
+
+    // 🎯 Score SEO
+    seoEl.textContent = data.seoScore !== null
+      ? (data.seoScore * 100).toFixed(0) + "%"
+      : "N/A";
+
+    // 🎯 Affichage brut (debug)
+    rawEl.textContent = JSON.stringify(data, null, 2);
+
+  } catch (err) {
+    console.error("Erreur JS:", err);
+    errorBadge.style.display = "inline-block";
+    rawEl.textContent = String(err);
   }
+});
 </script>
